@@ -71,7 +71,8 @@ jobs:
       - name: 'Terraform Initialization'
         shell: pwsh
         run: |
-          $envName = "${{ inputs.target_env }}"
-          if ($envName -eq "development") { $envName = "dev" }
-          $workspaceName = "infra-$envName"          
-          terraform -chdir="${{ inputs.working_dir }}" init -input=false -cloud-workspace=$workspaceName
+           $envName = "${{ inputs.target_env }}"
+           if ($envName -eq "development") { $envName = "dev" }
+           $workspaceName = "infra-$envName"   
+           terraform -chdir="${{ inputs.working_dir }}" init -input=false      
+           terraform -chdir="${{ inputs.working_dir }}" workspace select $workspaceName || terraform -chdir="${{ inputs.working_dir }}" workspace new $workspaceName
