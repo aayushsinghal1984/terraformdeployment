@@ -111,15 +111,15 @@ jobs:
     uses: ./.github/workflows/manual-validation.yml
 
   # STAGE 6: Terraform Apply
-  terraform-apply:
-    name: 'TF Apply / Deploy'
-    needs: [setup-env, manual-validation]
-    if: |
-      ((github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'workflow_dispatch') && 
-      needs.setup-env.outputs.skip_apply == 'false'
-    uses: ./.github/workflows/tf-apply.yml
-    with:
-      target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-      is_apply: true
-    secrets: inherit
+  #terraform-apply:
+  #  name: 'TF Apply / Deploy'
+  #  needs: [setup-env, manual-validation]
+  #  if: |
+  #    ((github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'workflow_dispatch') && 
+   #   needs.setup-env.outputs.skip_apply == 'false'
+   # uses: ./.github/workflows/tf-apply.yml
+   # with:
+   #   target_env: ${{ needs.setup-env.outputs.resolved_env }}
+   #   working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+    #  is_apply: true
+    #secrets: inherit
