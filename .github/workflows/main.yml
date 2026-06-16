@@ -38,40 +38,44 @@ jobs:
       resolved_dir: ${{ steps.resolver.outputs.resolved_dir }}
       skip_apply: ${{ steps.resolver.outputs.skip_apply }}
       is_apply: ${{ steps.resolver.outputs.is_apply }}
-      
     steps:
       - uses: actions/checkout@v4
       - id: resolver
+        shell: pwsh
         run: |
- 
-          "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $env = "${{ github.event.inputs.target_env }}"
+          if (-not $env) { $env = "production" }          
+          $dir = "${{ github.event.inputs.working_dir }}"
+          if (-not $dir) { $dir = "." }          
+          $skip = "${{ github.event.inputs.just_plan }}"
+          if (-not $skip) { $skip = "false" } 
+          $apply = if ($skip -eq "true") { "false" } else { "true" }        
+          "resolved_env=$env" >> $env:GITHUB_OUTPUT
+          "resolved_dir=$dir" >> $env:GITHUB_OUTPUT
+          "skip_apply=$skip" >> $env:GITHUB_OUTPUT
+          "is_apply=$apply" >> $env:GITHUB_OUTPUT
 
-  # STAGE 2: Code Quality & Security (Parallel Execution)
   tf-quality-checks:
     name: 'Lint & Security Scan'
     needs: setup-env
     strategy:
       matrix:
         workflow: ['tf-lint.yml', 'tf-tfSec.yml', 'tf-test.yml']
-    uses: ./.github/workflows/tf-lint.yml
+    uses: ./.github/workflows/${{ matrix.workflow }}
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # STAGE 3: Terraform Init, Validate & Plan
   terraform-plan:
     name: 'TF Validate & Plan'
     needs: [setup-env, tf-quality-checks]
-    uses: ./.github/workflows/tf-init-validate.yml # Updated Path
+    uses: ./.github/workflows/tf-init-validate.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # STAGE 4: OPA Policy Check
   opa-check:
     name: 'OPA Policy Check'
     needs: [setup-env, terraform-plan]
@@ -81,14 +85,12 @@ jobs:
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # STAGE 5: Manual Approval Gate
   manual-validation:
     name: 'Manual Approval Gate'
     needs: [setup-env, opa-check]
     if: needs.setup-env.outputs.skip_apply == 'false'
     uses: ./.github/workflows/manual-validation.yml
 
-  # STAGE 6: Terraform Apply
   terraform-apply:
     name: 'TF Apply / Deploy'
     needs: [setup-env, manual-validation]
