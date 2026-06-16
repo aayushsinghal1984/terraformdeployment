@@ -11,9 +11,8 @@ on:
         required: true
         type: string
       is_apply:
-        required: false
-        type: boolean        
-        default: false
+        required: true
+        type: boolean
         description: 'Set to true to run ONLY terraform apply from artifact'
 
 env:  
@@ -79,7 +78,6 @@ jobs:
   tag-infrastructure:
     name: 'Tagging and Versioning'
     needs: core-engine
-    
     if: ${{ inputs.is_apply == true && inputs.target_env == 'production' }}
     runs-on: ubuntu-latest
     permissions:
@@ -89,9 +87,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
       - name: Bump version and push tag
         uses: anothrNick/github-tag-action@1.64.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         WITH_V: true
