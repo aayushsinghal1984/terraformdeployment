@@ -1,9 +1,11 @@
 terraform {
   required_version = ">= 1.5.0"
   cloud {
-    organization = "HCLIT"
-    workspaces {    
+    organization = "ISCINFRA"
+    workspaces {  
+    prefix = "my-app"
     }
+
   }
   required_providers {
     azurerm = {
