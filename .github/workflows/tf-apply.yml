@@ -11,8 +11,7 @@ on:
         required: true
         type: string
       is_apply:
-        required: false
-        default: false
+        required: true
         type: boolean
         description: 'Set to true to run ONLY terraform apply from artifact'
 

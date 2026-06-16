@@ -1,4 +1,4 @@
-name: "Infrastructure Provisioning Pipeline"
+name: "Automated Infrastructure Provisioning Pipeline"
 
 on:
   push:
@@ -8,18 +8,22 @@ on:
   workflow_dispatch:
     inputs:
       target_env:
-        description: 'Select Environment to Deploy'
+        description: 'Select Environment to Deploy Manually'
         required: true
         default: 'production'
         type: choice
-        options: [development, sit, uat, production]
+        options:
+          - development
+          - sit
+          - uat
+          - production
       working_dir:
         description: 'Select Working Directory / Component'
         required: true
         default: '.'
         type: string
       just_plan:
-        description: 'Check to ONLY run Plan (No Apply)'
+        description: 'Check this to ONLY run Scan and Plan (No Apply)'
         required: true
         type: boolean
         default: false
@@ -30,87 +34,82 @@ permissions:
   pull-requests: write
 
 jobs:
+  # STAGE 1: Path and Environment Resolution
   setup-env:
     name: 'Environment & Path Evaluation'
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
     outputs:
       resolved_env: ${{ steps.resolver.outputs.resolved_env }}
       resolved_dir: ${{ steps.resolver.outputs.resolved_dir }}
       skip_apply: ${{ steps.resolver.outputs.skip_apply }}
-      is_apply: ${{ steps.resolver.outputs.is_apply }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
       - id: resolver
-        shell: pwsh
         run: |
-          $env = "${{ github.event.inputs.target_env }}"
-          if (-not $env) { $env = "production" }          
-          $dir = "${{ github.event.inputs.working_dir }}"
-          if (-not $dir) { $dir = "." }          
-          $skip = "${{ github.event.inputs.just_plan }}"
-          if (-not $skip) { $skip = "false" } 
-          $apply = if ($skip -eq "true") { "false" } else { "true" }        
-          "resolved_env=$env" >> $env:GITHUB_OUTPUT
-          "resolved_dir=$dir" >> $env:GITHUB_OUTPUT
-          "skip_apply=$skip" >> $env:GITHUB_OUTPUT
-          "is_apply=$apply" >> $env:GITHUB_OUTPUT
+          $dirChoice = "."
+          $justPlan  = "false"
 
-  # STAGE 2: Code Quality & Security (Separate Jobs)
-  lint-check:
-    name: 'Terraform Lint'
-    needs: setup-env
-    uses: ./.github/workflows/tf-lint.yml
-    with:
-      target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-    secrets: inherit
-
-  security-check:
-    name: 'Terraform Security (tfSec)'
-    needs: setup-env
-    uses: ./.github/workflows/tf-tfSec.yml
-    with:
-      target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-    secrets: inherit
-
-  test-check:
-    name: 'Terraform Test'
-    needs: setup-env
-    uses: ./.github/workflows/tf-test.yml
-    with:
-      target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-    secrets: inherit
-
-  # STAGE 3: Terraform Init, Validate & Plan
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+              $envChoice = "${{ inputs.target_env }}"
+              $dirChoice = "${{ inputs.working_dir }}"
+              $justPlan  = "${{ inputs.just_plan }}".ToLower()
+          } else {   
+              $changedFiles = git diff --name-only HEAD~1 HEAD            
+              $detectedDir = $changedFiles | Where-Object { 
+                  $_ -notlike ".github/*" -and 
+                  $_ -notlike "*.md" -and 
+                  $_ -match "/" 
+              } | ForEach-Object { ($_ -split '/')[0] } | Select-Object -Unique
+              
+              if ($detectedDir) { $dirChoice = $detectedDir[0] }
+              
+              $targetBranch = "${{ github.base_ref }}"
+              if ([string]::IsNullOrEmpty($targetBranch)) { $targetBranch = "${{ github.ref_name }}" }
+          
+              if ($targetBranch -eq "main") { $envChoice = "production" } else { $envChoice = "development" }
+          }       
+          "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          
+  # STAGE 2: Terraform Plan & Security Checks
   terraform-plan:
     name: 'TF Validate & Plan'
-    needs: [setup-env, lint-check, security-check, test-check]
-    uses: ./.github/workflows/tf-init-validate.yml
+    needs: setup-env
+    uses: ./.github/workflows/tf-init-plan.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: false 
     secrets: inherit
-
-  # STAGE 4: OPA Policy Check
+    
+  # STAGE 2.1: OPA Policy Check
   opa-check:
     name: 'OPA Policy Check'
     needs: [setup-env, terraform-plan]
+    #if: needs.setup-env.outputs.skip_apply == 'false'
     uses: ./.github/workflows/tf-opa-check.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: false
     secrets: inherit
 
-  # STAGE 5: Manual Approval Gate
+  # STAGE 3: Manual Approval Gate
   manual-validation:
     name: 'Manual Approval Gate'
-    needs: [setup-env, opa-check]
+    needs: [setup-env, terraform-plan, opa-check]
     if: needs.setup-env.outputs.skip_apply == 'false'
-    uses: ./.github/workflows/manual-validation.yml
+    uses: ./.github/workflows/manual-validation.yml    
 
-  # STAGE 6: Terraform Apply
+  # STAGE 4: Terraform Apply
   terraform-apply:
     name: 'TF Apply / Deploy'
     needs: [setup-env, manual-validation]
