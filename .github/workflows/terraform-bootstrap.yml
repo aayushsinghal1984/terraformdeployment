@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       target_env: { type: string, required: false }
-      working_dir: { type: string, required: false }
+      working_dir: { type: string, required: false, default: "." }
       is_apply: { type: boolean, default: false }
     secrets:
       TFE_API_TOKEN: 
@@ -13,14 +13,17 @@ on:
 jobs:
   terraform-task:
     runs-on: windows-latest
+    defaults:
+      run:
+       
+        working-directory: ./terraform-bootstrap
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
       - name: Terraform Init
         run: terraform init
