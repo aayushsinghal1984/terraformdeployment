@@ -55,27 +55,45 @@ jobs:
           "skip_apply=$skip" >> $env:GITHUB_OUTPUT
           "is_apply=$apply" >> $env:GITHUB_OUTPUT
 
-  tf-quality-checks:
-    name: 'Lint & Security Scan'
+  # STAGE 2: Code Quality & Security (Separate Jobs)
+  lint-check:
+    name: 'Terraform Lint'
     needs: setup-env
-    strategy:
-      matrix:
-        workflow: ['tf-lint.yml', 'tf-tfSec.yml', 'tf-test.yml']
-    uses: ./.github/workflows/${{ matrix.workflow }}
+    uses: ./.github/workflows/tf-lint.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
+  security-check:
+    name: 'Terraform Security (tfSec)'
+    needs: setup-env
+    uses: ./.github/workflows/tf-tfSec.yml
+    with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+    secrets: inherit
+
+  test-check:
+    name: 'Terraform Test'
+    needs: setup-env
+    uses: ./.github/workflows/tf-test.yml
+    with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+    secrets: inherit
+
+  # STAGE 3: Terraform Init, Validate & Plan
   terraform-plan:
     name: 'TF Validate & Plan'
-    needs: [setup-env, tf-quality-checks]
+    needs: [setup-env, lint-check, security-check, test-check]
     uses: ./.github/workflows/tf-init-validate.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
+  # STAGE 4: OPA Policy Check
   opa-check:
     name: 'OPA Policy Check'
     needs: [setup-env, terraform-plan]
@@ -85,12 +103,14 @@ jobs:
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
+  # STAGE 5: Manual Approval Gate
   manual-validation:
     name: 'Manual Approval Gate'
     needs: [setup-env, opa-check]
     if: needs.setup-env.outputs.skip_apply == 'false'
     uses: ./.github/workflows/manual-validation.yml
 
+  # STAGE 6: Terraform Apply
   terraform-apply:
     name: 'TF Apply / Deploy'
     needs: [setup-env, manual-validation]
