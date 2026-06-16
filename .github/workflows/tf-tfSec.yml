@@ -1,4 +1,4 @@
-name: 'Terraform tfSec Template'
+name: 'Terraform init plan Template'
 
 on:
   workflow_call:
@@ -14,20 +14,6 @@ on:
         required: true
         type: boolean
         description: 'Set to true to run ONLY terraform apply from artifact'
-      tfc_org:
-        required: true
-        type: string
-        description: 'Terraform Cloud Organization Name'
-    # Parent pipeline se secrets inherit karne ke liye ya receive karne ke liye secrets block define kiya
-    secrets:
-      ARM_CLIENT_ID:
-        required: true
-      ARM_TENANT_ID:
-        required: true
-      ARM_SUBSCRIPTION_ID:
-        required: true
-      TF_API_TOKEN:
-        required: true
 
 env:  
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -50,10 +36,9 @@ jobs:
       - name: 'Checkout Source Code'
         uses: actions/checkout@v4
 
-      - name: Install JQ via Choco
+      - name: Install 
         shell: pwsh
-        run: |
-          choco install jq -y --no-progress
+        run: choco install jq -y
 
       - name: 'Azure Login (OIDC)'
         uses: azure/login@v2
@@ -61,23 +46,30 @@ jobs:
           client-id: ${{ secrets.ARM_CLIENT_ID }}
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          enable-AzPSSession: true         
-         
-      - name: 'Run tfsec Security Scan'
-        # ${{ }} hata diya, yeh safe aur correct tarika hai
-        if: inputs.is_apply == false 
+          enable-AzPSSession: true
+          
+      - name: 'Setup TFLint'
+        if: ${{ inputs.is_apply == false }}
+        uses: terraform-linters/setup-tflint@v6.2.2
+        with:
+          tflint_version: latest
+  
+      - name: 'Run TFLint Scan'
+        if: ${{ inputs.is_apply == false }}
         shell: pwsh
-        run: |         
+        run: |
+          tflint --init --chdir="${{ inputs.working_dir }}"
+          tflint -f compact --chdir="${{ inputs.working_dir }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
+          
+      - name: 'Run tfsec Security Scan'
+        if: ${{ inputs.is_apply == false }}
+        shell: pwsh
+        run: |        
           $tfsecVersion = "v1.28.14"
           $downloadUrl = "https://github.com/aquasecurity/tfsec/releases/download/$tfsecVersion/tfsec-windows-amd64.exe"
           
-          Write-Host "Downloading tfsec..."
-          Invoke-WebRequest -Uri $downloadUrl -OutFile "tfsec.exe"
-          
-          # Path ko Windows compatible banane ke liye Resolve-Path use kiya taaki slashes ki dikkat na ho
-          $resolvedPath = Resolve-Path "${{ inputs.working_dir }}"
-          $tfvarsPath = "$resolvedPath/terraform.tfvars"
-          
-          Write-Host "Running tfsec scan on: $resolvedPath"
-          ./tfsec.exe "$resolvedPath" --tfvars-file "$tfvarsPath"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile "tfsec.exe"          
+          ./tfsec.exe "${{ inputs.working_dir }}" --tfvars-file "${{ inputs.working_dir }}/terraform.tfvars"
         continue-on-error: false

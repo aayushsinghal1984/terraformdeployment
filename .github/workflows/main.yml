@@ -1,96 +1,99 @@
-name: 'Terraform Main Deployment Pipeline'
+name: "Automated Infrastructure Provisioning Pipeline"
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main", "feature/**" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       target_env:
-        description: 'Target Environment (sit, uat, production)'
+        description: 'Select Environment to Deploy'
         required: true
-        default: 'sit'
+        default: 'production'
         type: choice
-        options:
-          - sit
-          - uat
-          - production
+        options: [development, sit, uat, production]
       working_dir:
-        description: 'Root directory of your Terraform modules'
+        description: 'Select Working Directory / Component'
         required: true
-        default: 'terraform'
+        default: '.'
         type: string
+      just_plan:
+        description: 'Check to ONLY run Plan (No Apply)'
+        required: true
+        type: boolean
+        default: false
 
-# FIX: Permissions ab root level par hain aur sahi se indented hain
 permissions:
-  contents: write
   id-token: write
+  contents: write
+  pull-requests: write
 
 jobs:
-  # 1. Run Static Code Analysis (Linting)
-  tflint-check:
-    name: 'Linting'
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-tflint.yml@531faed89767cda0f81af3ee43d17930158ebe3e
+  setup-env:
+    name: 'Environment & Path Evaluation'
+    runs-on: windows-latest
+    outputs:
+      resolved_env: ${{ steps.resolver.outputs.resolved_env }}
+      resolved_dir: ${{ steps.resolver.outputs.resolved_dir }}
+      skip_apply: ${{ steps.resolver.outputs.skip_apply }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: resolver
+        run: |
+          # ... (Aapka existing logic yahan rahega)
+          "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+  # STAGE 2: Code Quality & Security (Parallel Execution)
+  tf-quality-checks:
+    name: 'Lint & Security Scan'
+    needs: setup-env
+    strategy:
+      matrix:
+        workflow: ['tf-lint.yml', 'tf-tfSec.yml', 'tf-test.yml']
+    uses: ./.github/workflows/tf-lint.yml
     with:
-      target_env: ${{ inputs.target_env || 'sit' }}
-      working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
-      is_apply: false
-      tfc_org: ${{ vars.TF_CLOUD_ORG }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # 2. Run Security Vulnerability Scanning
-  tfsec-scan:
-    name: 'Security Scan'
-    needs: tflint-check
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-tfSec.yml@531faed89767cda0f81af3ee43d17930158ebe3e
-    with:
-      target_env: ${{ inputs.target_env || 'sit' }}
-      working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
-      is_apply: false
-      tfc_org: ${{ vars.TF_CLOUD_ORG }}
-    secrets: inherit
-
-  # 3. Generate Terraform Plan and Upload Binary Artifact
+  # STAGE 3: Terraform Init, Validate & Plan
   terraform-plan:
-    name: 'TF Plan'
-    needs: tfsec-scan
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-init-validate.yml@531faed89767cda0f81af3ee43d17930158ebe3e
+    name: 'TF Validate & Plan'
+    needs: [setup-env, tf-quality-checks]
+    uses: ./.github/workflows/tf-init-validate.yml # Updated Path
     with:
-      target_env: ${{ inputs.target_env || 'sit' }}
-      working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
-      is_apply: false
-      tfc_org: ${{ vars.TF_CLOUD_ORG }}
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # 4. Open Policy Agent (OPA) Compliance Check
-  opa-compliance:
-    name: 'OPA Compliance'
-    needs: terraform-plan
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-opa-check.yml@531faed89767cda0f81af3ee43d17930158ebe3e
+  # STAGE 4: OPA Policy Check
+  opa-check:
+    name: 'OPA Policy Check'
+    needs: [setup-env, terraform-plan]
+    uses: ./.github/workflows/tf-opa-check.yml
     with:
-      target_env: ${{ inputs.target_env || 'sit' }}
-      working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
-      is_apply: false
-      tfc_org: ${{ vars.TF_CLOUD_ORG }}
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
-  # 5. Manual Approval Gate 
-  manual-approval:
-    name: 'Approval Gate'
-    needs: opa-compliance
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/manual-validation.yml@531faed89767cda0f81af3ee43d17930158ebe3e
+  # STAGE 5: Manual Approval Gate
+  manual-validation:
+    name: 'Manual Approval Gate'
+    needs: [setup-env, opa-check]
+    if: needs.setup-env.outputs.skip_apply == 'false'
+    uses: ./.github/workflows/manual-validation.yml
 
-  # 6. Execute Terraform Apply, Tagging and Versioning
+  # STAGE 6: Terraform Apply
   terraform-apply:
-    name: 'TF Apply & Tag'
-    needs: manual-approval
-    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-apply.yml@531faed89767cda0f81af3ee43d17930158ebe3e
+    name: 'TF Apply / Deploy'
+    needs: [setup-env, manual-validation]
+    if: |
+      ((github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'workflow_dispatch') && 
+      needs.setup-env.outputs.skip_apply == 'false'
+    uses: ./.github/workflows/tf-apply.yml
     with:
-      target_env: ${{ inputs.target_env || 'sit' }}
-      working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
-      is_apply: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-      tfc_org: ${{ vars.TF_CLOUD_ORG }}
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
