@@ -68,13 +68,35 @@ jobs:
           terraform_wrapper: false 
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: 'Terraform Initialization'
+      - name: Terraform Initialization & Workspace Auto-Creation
         shell: pwsh
         run: |
+          # 1. Setup Variables
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
           $workspaceName = "infra-$envName"
           
-          Write-Output "Targeting Workspace: $workspaceName"
-          $env:TF_WORKSPACE = $workspaceName                    
+          # 2. Debugging: Print environment state
+          Write-Host "--- Debugging Diagnostics ---"
+          Write-Host "Target Workspace: $workspaceName"
+          Write-Host "Organization: ${{ env.TF_CLOUD_ORGANIZATION }}"
+          Write-Host "Working Directory: ${{ inputs.working_dir }}"
+          
+          # 3. Debugging: Check for existing local state that might conflict
+          $tfFolder = Join-Path "${{ inputs.working_dir }}" ".terraform"
+          if (Test-Path $tfFolder) {
+              Write-Host "Existing .terraform directory found. Removing for clean init."
+              Remove-Item -Path $tfFolder -Recurse -Force
+          }
+      
+          # 4. Save Workspace to Environment
+          "TF_WORKSPACE=$workspaceName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $env:TF_WORKSPACE = $workspaceName
+      
+          # 5. Debugging: List workspaces reachable by current credentials
+          Write-Host "Available Workspaces in Organization:"
+          terraform -chdir="${{ inputs.working_dir }}" workspace list
+          Write-Host "--- End Diagnostics ---"
+      
+          # 6. Initialize
           terraform -chdir="${{ inputs.working_dir }}" init -input=false
