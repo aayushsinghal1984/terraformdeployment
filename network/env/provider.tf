@@ -3,9 +3,8 @@ terraform {
 
   cloud {
     organization = "ISCINFRA"
-    workspaces {
-      prefix = "infra-"
-    }
+  
+    workspaces { }
   }
 
   required_providers {
@@ -14,4 +13,4 @@ terraform {
       version = "4.14.0"
     }
   }
-} 
+}
