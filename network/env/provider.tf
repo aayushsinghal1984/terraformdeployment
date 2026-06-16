@@ -2,10 +2,8 @@ terraform {
   required_version = ">= 1.5.0"
   cloud {
     organization = "ISCINFRA"
-    workspaces {  
-    name = "my-app"
-    }
-
+    
+    workspaces { }
   }
   required_providers {
     azurerm = {
@@ -13,7 +11,4 @@ terraform {
       version = "4.14.0"
     }
   }
-}
-provider "azurerm" {
-  features {}
 }
