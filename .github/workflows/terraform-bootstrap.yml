@@ -30,15 +30,17 @@ jobs:
         run: |
           Write-Host "Current Directory: $(Get-Location)"
           Write-Host "Files in Directory:"
-          Get-ChildItem -Path . -Recurse | Select-Object FullName
+          Get-ChildItem -Path . -Recurse | Select-Object FullName''
 
       - name: Terraform Init
-        run: terraform init
+        working-directory: ./terraform-bootstrap
         env:
           TF_LOG: DEBUG
+        run: |
+          terraform init -no-color > terraform_init.log
         
       - name: Terraform Plan
-        run: terraform plan
+        run: terraform plan -no-color
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -no-color
