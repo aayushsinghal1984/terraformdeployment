@@ -1,0 +1,31 @@
+name: Reusable Terraform Action
+
+on:
+  workflow_call:
+    inputs:
+      target_env: { type: string, required: true }
+      working_dir: { type: string, required: true }
+      is_apply: { type: boolean, default: false }
+    secrets:
+      TFE_API_TOKEN: 
+        required: true
+
+jobs:
+  terraform-task:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      
+      - name: Terraform Init & Run
+        shell: pwsh
+        env:
+          TF_WORKSPACE: ${{ inputs.target_env }}          
+          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }} 
+        run: |
+          terraform -chdir="${{ inputs.working_dir }}" init
+          if ("${{ inputs.is_apply }}" -eq "true") {
+            terraform -chdir="${{ inputs.working_dir }}" apply -auto-approve
+          } else {
+            terraform -chdir="${{ inputs.working_dir }}" plan
+          }

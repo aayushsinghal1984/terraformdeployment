@@ -34,7 +34,12 @@ permissions:
   pull-requests: write
 
 jobs:
-  # STAGE 1: Path and Environment Resolution
+  bootstrap:
+    name: "worksapce Setup"
+    uses: ./.github/workflows/terraform-bootstrap.yml
+    secrets: 
+      TFE_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+
   setup-env:
     name: 'Environment & Path Evaluation'
     runs-on: windows-latest
