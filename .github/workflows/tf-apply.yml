@@ -12,7 +12,8 @@ on:
         type: string
       is_apply:
         required: true
-        type: boolean
+        type: boolean        
+        default: false
         description: 'Set to true to run ONLY terraform apply from artifact'
 
 env:  
@@ -79,7 +80,7 @@ jobs:
     name: 'Tagging and Versioning'
     needs: core-engine
     
-    if: ${{ inputs.is_apply == 'true' && inputs.target_env == 'production' }}
+    if: ${{ inputs.is_apply == true && inputs.target_env == 'production' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
