@@ -74,14 +74,14 @@ jobs:
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
           $workspaceName = "infra-$envName"
-     
-          terraform -chdir="${{ inputs.working_dir }}" init -input=false       
-    
-          $cmd = "terraform -chdir='${{ inputs.working_dir }}' workspace select $workspaceName"
-          Invoke-Expression $cmd
           
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "Workspace naya hai, create kar rahe hain..."
-            $cmdNew = "terraform -chdir='${{ inputs.working_dir }}' workspace new $workspaceName"
-            Invoke-Expression $cmdNew
+          # Initialize the directory
+          terraform -chdir="${{ inputs.working_dir }}" init -input=false
+          
+          # Attempt to select the workspace, create it if it does not exist
+          try {
+            terraform -chdir="${{ inputs.working_dir }}" workspace select $workspaceName -no-color
+          } catch {
+            Write-Output "Creating new workspace: $workspaceName"
+            terraform -chdir="${{ inputs.working_dir }}" workspace new $workspaceName
           }
