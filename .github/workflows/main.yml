@@ -121,5 +121,5 @@ jobs:
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-      is_apply: ${{ fromJSON(needs.setup-env.outputs.is_apply || 'false') }}
+      is_apply: ${{ needs.setup-env.outputs.is_apply }}
     secrets: inherit
