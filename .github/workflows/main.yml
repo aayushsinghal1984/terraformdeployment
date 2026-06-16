@@ -24,11 +24,16 @@ on:
         default: 'terraform'
         type: string
 
+# FIX: Permissions ab root level par hain aur sahi se indented hain
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   # 1. Run Static Code Analysis (Linting)
   tflint-check:
     name: 'Linting'
-    uses: ./.github/workflows/tf-tflint.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-tflint.yml@531faed89767cda0f81af3ee43d17930158ebe3e
     with:
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
@@ -40,7 +45,7 @@ jobs:
   tfsec-scan:
     name: 'Security Scan'
     needs: tflint-check
-    uses: ./.github/workflows/tf-tfSec.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-tfSec.yml@531faed89767cda0f81af3ee43d17930158ebe3e
     with:
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
@@ -52,7 +57,7 @@ jobs:
   terraform-plan:
     name: 'TF Plan'
     needs: tfsec-scan
-    uses: ./.github/workflows/tf-init-validate.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-init-validate.yml@531faed89767cda0f81af3ee43d17930158ebe3e
     with:
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
@@ -64,7 +69,7 @@ jobs:
   opa-compliance:
     name: 'OPA Compliance'
     needs: terraform-plan
-    uses: ./.github/workflows/tf-opa-check.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-opa-check.yml@531faed89767cda0f81af3ee43d17930158ebe3e
     with:
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
@@ -76,13 +81,13 @@ jobs:
   manual-approval:
     name: 'Approval Gate'
     needs: opa-compliance
-    uses: ./.github/workflows/manual-validation.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/manual-validation.yml@531faed89767cda0f81af3ee43d17930158ebe3e
 
   # 6. Execute Terraform Apply, Tagging and Versioning
   terraform-apply:
     name: 'TF Apply & Tag'
     needs: manual-approval
-    uses: ./.github/workflows/tf-apply.yml
+    uses: aayushsinghal1984/terraformdeployment/.github/workflows/tf-apply.yml@531faed89767cda0f81af3ee43d17930158ebe3e
     with:
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
