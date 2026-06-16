@@ -78,8 +78,8 @@ jobs:
   tag-infrastructure:
     name: 'Tagging and Versioning'
     needs: core-engine
-   
-    if: ${{ inputs.is_apply == true && inputs.target_env == 'production' }}
+    
+    if: ${{ inputs.is_apply == 'true' && inputs.target_env == 'production' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
