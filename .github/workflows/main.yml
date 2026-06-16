@@ -120,6 +120,6 @@ jobs:
     uses: ./.github/workflows/tf-apply.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-      is_apply: true
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}  
+      is_apply: true 
     secrets: inherit
