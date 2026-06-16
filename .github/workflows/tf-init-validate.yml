@@ -68,35 +68,31 @@ jobs:
           terraform_wrapper: false 
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Terraform Initialization & Workspace Auto-Creation
+      - name: Terraform Initialization & Workspace Creation
         shell: pwsh
         env:
-          # यह सुनिश्चित करता है कि Terraform को सही Organization पता हो
           TF_CLOUD_ORGANIZATION: "ISCINFRA" 
         run: |
-          # --- 1. Variables Setup ---
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
           $workspaceName = "infra-$envName"
           
-          # --- 2. Debugging Diagnostics ---
-          Write-Host "--- [DEBUG] Pipeline Variables ---"
-          Write-Host "Target Env: $envName"
-          Write-Host "Workspace Name: $workspaceName"
-          Write-Host "Organization: $env:TF_CLOUD_ORGANIZATION"
-          
-          # --- 3. Clean Slate (पुराना कैश हटाना) ---
+          # 1. Clean previous cache to ensure fresh connection
           $tfFolder = Join-Path "${{ inputs.working_dir }}" ".terraform"
-          if (Test-Path $tfFolder) {
-              Write-Host "[DEBUG] पुरानी .terraform डायरेक्टरी हटा रहे हैं..."
-              Remove-Item -Path $tfFolder -Recurse -Force
-          }
-      
-          # --- 4. Workspace Verification (महत्वपूर्ण स्टेप) ---
-          Write-Host "[DEBUG] उपलब्ध वर्कस्पेस की सूची:"
-          # यह कमांड दिखाएगा कि क्या वाकई 'infra-sit' वहां मौजूद है
-          terraform -chdir="${{ inputs.working_dir }}" workspace list
-          
-          # --- 5. Initialization ---
-          Write-Host "[DEBUG] Terraform Init शुरू कर रहे हैं..."
+          if (Test-Path $tfFolder) { Remove-Item -Path $tfFolder -Recurse -Force }
+
+          # 2. Initialize first to establish connection to the Remote Backend
+          Write-Host "Initializing Terraform..."
           terraform -chdir="${{ inputs.working_dir }}" init -input=false
+
+          # 3. Check for workspace and create if it doesn't exist
+          Write-Host "Checking for workspace: $workspaceName"
+          $currentWorkspaces = (terraform -chdir="${{ inputs.working_dir }}" workspace list)
+          
+          if ($currentWorkspaces -notmatch "$workspaceName") {
+              Write-Host "Workspace '$workspaceName' not found. Creating..."
+              terraform -chdir="${{ inputs.working_dir }}" workspace new $workspaceName
+          } else {
+              Write-Host "Workspace '$workspaceName' exists. Selecting..."
+              terraform -chdir="${{ inputs.working_dir }}" workspace select $workspaceName
+          }
