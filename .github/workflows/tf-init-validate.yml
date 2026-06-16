@@ -34,7 +34,7 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   ARM_USE_OIDC: true
   TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-  TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
+  TF_CLOUD_ORGANIZATION: "ISCINFRA"
 
 jobs:
   core-engine:
@@ -70,33 +70,33 @@ jobs:
 
       - name: Terraform Initialization & Workspace Auto-Creation
         shell: pwsh
+        env:
+          # यह सुनिश्चित करता है कि Terraform को सही Organization पता हो
+          TF_CLOUD_ORGANIZATION: "ISCINFRA" 
         run: |
-          # 1. Setup Variables
+          # --- 1. Variables Setup ---
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
           $workspaceName = "infra-$envName"
           
-          # 2. Debugging: Print environment state
-          Write-Host "--- Debugging Diagnostics ---"
-          Write-Host "Target Workspace: $workspaceName"
-          Write-Host "Organization: ${{ env.TF_CLOUD_ORGANIZATION }}"
-          Write-Host "Working Directory: ${{ inputs.working_dir }}"
+          # --- 2. Debugging Diagnostics ---
+          Write-Host "--- [DEBUG] Pipeline Variables ---"
+          Write-Host "Target Env: $envName"
+          Write-Host "Workspace Name: $workspaceName"
+          Write-Host "Organization: $env:TF_CLOUD_ORGANIZATION"
           
-          # 3. Debugging: Check for existing local state that might conflict
+          # --- 3. Clean Slate (पुराना कैश हटाना) ---
           $tfFolder = Join-Path "${{ inputs.working_dir }}" ".terraform"
           if (Test-Path $tfFolder) {
-              Write-Host "Existing .terraform directory found. Removing for clean init."
+              Write-Host "[DEBUG] पुरानी .terraform डायरेक्टरी हटा रहे हैं..."
               Remove-Item -Path $tfFolder -Recurse -Force
           }
       
-          # 4. Save Workspace to Environment
-          "TF_WORKSPACE=$workspaceName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $env:TF_WORKSPACE = $workspaceName
-      
-          # 5. Debugging: List workspaces reachable by current credentials
-          Write-Host "Available Workspaces in Organization:"
+          # --- 4. Workspace Verification (महत्वपूर्ण स्टेप) ---
+          Write-Host "[DEBUG] उपलब्ध वर्कस्पेस की सूची:"
+          # यह कमांड दिखाएगा कि क्या वाकई 'infra-sit' वहां मौजूद है
           terraform -chdir="${{ inputs.working_dir }}" workspace list
-          Write-Host "--- End Diagnostics ---"
-      
-          # 6. Initialize
+          
+          # --- 5. Initialization ---
+          Write-Host "[DEBUG] Terraform Init शुरू कर रहे हैं..."
           terraform -chdir="${{ inputs.working_dir }}" init -input=false
