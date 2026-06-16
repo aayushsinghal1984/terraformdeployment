@@ -43,4 +43,4 @@ jobs:
         run: terraform plan -no-color
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -no-color
+        run: terraform apply -auto-approve -var="tfe_token=${{ secrets.TF_API_TOKEN }}"
