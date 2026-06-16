@@ -30,7 +30,6 @@ jobs:
     name: 'Linting'
     uses: ./.github/workflows/tf-tflint.yml
     with:
-      # Yaha env.TARGET_ENV ki jagah direct inputs use kiya hai jo 100% work karega
       target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
       is_apply: false
@@ -43,7 +42,7 @@ jobs:
     needs: tflint-check
     uses: ./.github/workflows/tf-tfSec.yml
     with:
-      target_env: ${{ inputs.inputs.target_env || 'sit' }}
+      target_env: ${{ inputs.target_env || 'sit' }}
       working_dir: ${{ inputs.working_dir || 'terraform/azure' }}
       is_apply: false
       tfc_org: ${{ vars.TF_CLOUD_ORG }}
