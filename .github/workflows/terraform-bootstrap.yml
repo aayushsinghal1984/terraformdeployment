@@ -23,9 +23,6 @@ jobs:
           TF_WORKSPACE: ${{ inputs.target_env }}          
           TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }} 
         run: |
-          terraform -chdir="${{ inputs.working_dir }}" init
-          if ("${{ inputs.is_apply }}" -eq "true") {
-            terraform -chdir="${{ inputs.working_dir }}" apply -auto-approve
-          } else {
-            terraform -chdir="${{ inputs.working_dir }}" plan
-          }
+          trun: |
+          terraform init         
+          terraform apply -auto-approve -var="tfe_token=${{ secrets.TF_API_TOKEN }}"
