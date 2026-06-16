@@ -67,6 +67,31 @@ jobs:
         with:
           terraform_wrapper: false 
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+       - name: 'Auto-Create Workspace via API'
+          shell: pwsh
+          env:
+            TF_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          run: |
+            $org = "${{ inputs.tfc_org }}"
+            $ws = "infra-${{ inputs.target_env }}"
+            $url = "https://app.terraform.io/api/v2/organizations/$org/workspaces"
+            
+            $headers = @{ 
+              "Authorization" = "Bearer $env:TF_TOKEN"
+              "Content-Type" = "application/vnd.api+v1+json" 
+            }
+            
+           
+            $checkResponse = Invoke-RestMethod -Uri "$url/$ws" -Headers $headers -Method Get -ErrorAction SilentlyContinue
+            
+            if ($null -eq $checkResponse) {
+                Write-Output "Workspace $ws nahi mila, create kar rahe hain..."
+                $body = @{ data = @{ type = "workspaces"; attributes = @{ name = $ws } } } | ConvertTo-Json -Depth 10
+                Invoke-RestMethod -Uri $url -Headers $headers -Method Post -Body $body
+                Write-Output "Workspace $ws successfully create ho gaya."
+            } else {
+                Write-Output "Workspace $ws pehle se exist karta hai."
+            }
 
       - name: 'Terraform Initialization & Workspace Auto-Creation'
         shell: pwsh
