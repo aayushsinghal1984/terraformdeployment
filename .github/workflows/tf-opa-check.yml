@@ -1,0 +1,135 @@
+name: 'Terraform opa check and summary'
+
+on:
+  workflow_call:
+    inputs:
+      target_env:
+        required: true
+        type: string
+        description: 'Target Environment (sit, uat, production)'
+      working_dir:          
+        required: true
+        type: string
+      is_apply:
+        required: true
+        type: boolean
+        description: 'Set to true to run ONLY terraform apply from artifact'
+
+env:  
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: true
+  TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+jobs:
+  core-engine:
+    name: 'Execute TF Ops'
+    runs-on: windows-latest
+    environment: ${{ inputs.target_env }}
+    
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - name: 'Checkout Infrastructure Source Code'
+        uses: actions/checkout@v4
+
+      - name: 'Checkout OPA Policies Repo'
+        if: ${{ inputs.is_apply == false }}
+        uses: actions/checkout@v4
+        with:
+          # GitHub Organization aur Repo Name sahi se dalein
+          repository: 'YOUR_GITHUB_ORGANIZATION_OR_USER/YOUR_POLICY_REPO_NAME' 
+          path: 'policies'
+          token: ${{ secrets.POLICY_REPO_TOKEN || github.token }}
+
+      - name: Install jq
+        shell: pwsh
+        run: choco install jq -y
+
+      - name: 'Setup Terraform'
+        uses: hashicorp/setup-terraform@v3
+
+      - name: 'Azure Login'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: 'Setup Open Policy Agent (OPA)'
+        if: ${{ inputs.is_apply == false }}
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 'v0.61.0'
+
+      - name: 'Download Terraform Plan Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+        
+          path: "${{ github.workspace }}\\${{ inputs.working_dir }}"
+
+      - name: 'Convert Binary Plan to JSON'
+        if: ${{ inputs.is_apply == false }}
+        shell: pwsh
+        run: |
+          $targetDir = "${{ inputs.working_dir }}"
+          $tfPath = (Get-Command terraform).Source         
+          & $tfPath -chdir="$targetDir" init -backend=false        
+          $planJson = & $tfPath -chdir="$targetDir" show -json tfplan.binary          
+
+          $planJson | Out-File -FilePath "$targetDir/tfplan.json" -Encoding utf8
+
+      - name: 'Run OPA Policy Check'
+        if: ${{ inputs.is_apply == false }}
+        shell: pwsh
+        run: |
+          $targetDir = "${{ inputs.working_dir }}"
+          if ([string]::IsNullOrWhiteSpace($targetDir)) { $targetDir = "." }
+          $jsonPath = Join-Path $env:GITHUB_WORKSPACE "$targetDir/tfplan.json"
+          $opaResult = Join-Path $env:GITHUB_WORKSPACE "$targetDir/opa_result.json"
+          $jqPath = (Get-Command jq).Source
+          
+          # Module directory name extract karein (sit, uat, etc.)
+          $moduleName = Split-Path $targetDir -Leaf
+          
+          # Windows compatibility path setup
+          $policyBundle = Join-Path $env:GITHUB_WORKSPACE "policies\$moduleName"
+          Write-Host "Searching for policy bundle at: $policyBundle"
+      
+          if (Test-Path $policyBundle) {
+              
+              "### OPA Policy Check Summary" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+              "**Policy Bundle Location:** $policyBundle" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              
+              # FIX: UTF-8 Encoding ke sath file save karne ke liye Out-File use kiya (Taaki JQ fail na ho)
+              & opa eval --format json --bundle "$policyBundle" "data" --input "$jsonPath" | Out-File -FilePath "$opaResult" -Encoding utf8
+              
+              Write-Host "--- OPA JSON OUTPUT START ---"
+              Get-Content "$opaResult"
+              Write-Host "--- OPA JSON OUTPUT END ---"
+      
+              if (Test-Path "$opaResult") {
+                  $rawCount = & $jqPath -r '.result[0].expressions[0].value | .. | .deny? | select(. != null) | length' "$opaResult"
+                  $violationCount = if ([string]::IsNullOrWhiteSpace($rawCount)) { 0 } else { [int]$rawCount }
+                  
+                  if ($violationCount -gt 0) {
+                      "**OPA Status:**  AIL - $violationCount Violations Found" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+                      Write-Error "OPA Policy Violations Found!"
+                      exit 1
+                  } else {
+                      "**OPA Status:** PASS - Compliant" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+                  }
+              } else {
+                  Write-Error "OPA result file was not created!"
+                  exit 1
+              }
+          } else {
+              "### OPA Status:  FAILED" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+              "No Policy Bundle Found at location: `$policyBundle`" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              Write-Error "OPA Policy folder missing! Pipeline stopped."
+              exit 1
+          }
