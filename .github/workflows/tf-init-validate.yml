@@ -73,15 +73,5 @@ jobs:
         run: |
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
-          $workspaceName = "infra-$envName"
-          
-          # Initialize the directory
-          terraform -chdir="${{ inputs.working_dir }}" init -input=false
-          
-          # Attempt to select the workspace, create it if it does not exist
-          try {
-            terraform -chdir="${{ inputs.working_dir }}" workspace select $workspaceName -no-color
-          } catch {
-            Write-Output "Creating new workspace: $workspaceName"
-            terraform -chdir="${{ inputs.working_dir }}" workspace new $workspaceName
-          }
+          $workspaceName = "infra-$envName"          
+          terraform -chdir="${{ inputs.working_dir }}" init -input=false -cloud-workspace=$workspaceName
