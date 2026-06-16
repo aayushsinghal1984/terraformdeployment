@@ -14,6 +14,10 @@ on:
         required: true
         type: boolean
         description: 'Set to true to run ONLY terraform apply from artifact'
+      tfc_org:
+        required: true
+        type: string
+        description: 'Terraform Cloud Organization Name'
 
 env:  
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
