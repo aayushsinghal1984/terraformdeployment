@@ -17,10 +17,17 @@ on:
       tfc_org:
         required: true
         type: string
-        description: 'Terraform Cloud Organization Name'tfc_org:
+        description: 'Terraform Cloud Organization Name'
+    # Parent workflow se incoming secrets ko receive karne ke liye declaration
+    secrets:
+      ARM_CLIENT_ID:
         required: true
-        type: string
-        description: 'Terraform Cloud Organization Name'  
+      ARM_TENANT_ID:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
+      TF_API_TOKEN:
+        required: true
 
 env:  
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -43,9 +50,12 @@ jobs:
       - name: 'Checkout Source Code'
         uses: actions/checkout@v4
 
-      - name: Install 
+      # Windows par JQ aur TFLint dono ko Choco se install karna best hai
+      - name: 'Install JQ and TFLint via Choco'
         shell: pwsh
-        run: choco install jq -y
+        run: |
+          choco install jq -y --no-progress
+          choco install tflint -y --no-progress
 
       - name: 'Azure Login (OIDC)'
         uses: azure/login@v2
@@ -55,19 +65,17 @@ jobs:
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           enable-AzPSSession: true
           
-      - name: 'Setup TFLint'
-        if: ${{ inputs.is_apply == false }}
-        uses: terraform-linters/setup-tflint@v6.2.2
-        with:
-          tflint_version: latest
-  
       - name: 'Run TFLint Scan'
-        if: ${{ inputs.is_apply == false }}
+        if: inputs.is_apply == false
         shell: pwsh
         run: |
-          tflint --init --chdir="${{ inputs.working_dir }}"
-          tflint -f compact --chdir="${{ inputs.working_dir }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
+          # Windows compatibility ke liye working directory ka absolute path nikalna safe hai
+          $resolvedPath = (Resolve-Path "${{ inputs.working_dir }}").Path
           
-      
+          Write-Host "Initializing TFLint in: $resolvedPath"
+          tflint --init --chdir="$resolvedPath"
+          
+          Write-Host "Running TFLint inspection..."
+          tflint -f compact --chdir="$resolvedPath"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
