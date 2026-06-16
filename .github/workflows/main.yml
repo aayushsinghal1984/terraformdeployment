@@ -78,9 +78,9 @@ jobs:
           "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-# tf LINTING
+
   linting-check:
-    name: 'TF Validate & Plan'
+    name: 'Terraform Linting'
     needs: setup-env
     uses: ./.github/workflows/tf-linit.yml
     with:
@@ -88,9 +88,9 @@ jobs:
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
       is_apply: false 
     secrets: inherit
-#tf Sec TEST
+
   tfsec-check:
-    name: 'TF Validate & Plan'
+    name: 'Terraform Security Scan'
     needs: setup-env
     uses: ./.github/workflows/tf-linit.yml
     with:
@@ -98,9 +98,9 @@ jobs:
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
       is_apply: false 
     secrets: inherit
-# TF tEST
-  tftest-check:
-    name: 'TF Validate & Plan'
+
+  unittest-check:
+    name: 'Terraform Unit Test'
     needs: setup-env
     uses: ./.github/workflows/tf-test.yml
     with:
