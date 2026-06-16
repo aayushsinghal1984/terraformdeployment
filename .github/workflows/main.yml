@@ -78,6 +78,36 @@ jobs:
           "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+  linting-check:
+    name: 'TF Validate & Plan'
+    needs: setup-env
+    uses: ./.github/workflows/tf-linit.yml
+    with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: false 
+    secrets: inherit
+
+  tfsec-check:
+    name: 'TF Validate & Plan'
+    needs: setup-env
+    uses: ./.github/workflows/tf-linit.yml
+    with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: false 
+    secrets: inherit
+
+  tftest-check:
+    name: 'TF Validate & Plan'
+    needs: setup-env
+    uses: ./.github/workflows/tf-test.yml
+    with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: false 
+    secrets: inherit
           
   # STAGE 2: Terraform Plan & Security Checks
   terraform-plan:
