@@ -68,33 +68,20 @@ jobs:
           terraform_wrapper: false 
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: 'Auto-Create Workspace via API'
-        shell: pwsh
-        env:
-          TF_TOKEN: ${{ secrets.TF_API_TOKEN }}
-        run: |
-          $org = "${{ inputs.tfc_org }}"
-          $ws = "infra-${{ inputs.target_env }}"
-          $url = "https://app.terraform.io/api/v2/organizations/$org/workspaces"
-          $headers = @{ "Authorization" = "Bearer $env:TF_TOKEN"; "Content-Type" = "application/vnd.api+v1+json" }
-          $checkResponse = Invoke-RestMethod -Uri "$url/$ws" -Headers $headers -Method Get -ErrorAction SilentlyContinue
-          if ($null -eq $checkResponse) {
-            Write-Output "Workspace $ws nahi mila, create kar rahe hain..."
-            $body = @{ data = @{ type = "workspaces"; attributes = @{ name = $ws } } } | ConvertTo-Json -Depth 10
-            Invoke-RestMethod -Uri $url -Headers $headers -Method Post -Body $body
-            Write-Output "Workspace $ws successfully create ho gaya."
-          } else {
-            Write-Output "Workspace $ws pehle se exist karta hai."
-          }
-
-      - name: 'Terraform Initialization & Workspace Auto-Creation'
+      - name: 'Terraform Initialization'
         shell: pwsh
         run: |
           $envName = "${{ inputs.target_env }}"
           if ($envName -eq "development") { $envName = "dev" }
           $workspaceName = "infra-$envName"
-          Write-Output "Targeting Workspace on TF Cloud: $workspaceName"
-          "TF_WORKSPACE=$workspaceName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $env:TF_WORKSPACE = $workspaceName
-          $env:TF_CLOUD_ORGANIZATION = "${{ inputs.tfc_org }}"
-          terraform -chdir="${{ inputs.working_dir }}" init -input=false
+     
+          terraform -chdir="${{ inputs.working_dir }}" init -input=false       
+    
+          $cmd = "terraform -chdir='${{ inputs.working_dir }}' workspace select $workspaceName"
+          Invoke-Expression $cmd
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "Workspace naya hai, create kar rahe hain..."
+            $cmdNew = "terraform -chdir='${{ inputs.working_dir }}' workspace new $workspaceName"
+            Invoke-Expression $cmdNew
+          }
