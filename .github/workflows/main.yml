@@ -37,11 +37,13 @@ jobs:
       resolved_env: ${{ steps.resolver.outputs.resolved_env }}
       resolved_dir: ${{ steps.resolver.outputs.resolved_dir }}
       skip_apply: ${{ steps.resolver.outputs.skip_apply }}
+      is_apply: ${{ steps.resolver.outputs.is_apply }}
+      
     steps:
       - uses: actions/checkout@v4
       - id: resolver
         run: |
-          # ... (Aapka existing logic yahan rahega)
+ 
           "resolved_env=$envChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "resolved_dir=$dirChoice" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "skip_apply=$justPlan" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -55,6 +57,7 @@ jobs:
         workflow: ['tf-lint.yml', 'tf-tfSec.yml', 'tf-test.yml']
     uses: ./.github/workflows/tf-lint.yml
     with:
+      target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
     secrets: inherit
 
@@ -96,4 +99,5 @@ jobs:
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
       working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
+      is_apply: ${{ needs.setup-env.outputs.is_apply }}
     secrets: inherit
