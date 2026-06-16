@@ -34,7 +34,6 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   ARM_USE_OIDC: true
   TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-  # Vars ki jagah direct input use kiya jo fully reliable hai
   TF_CLOUD_ORGANIZATION: ${{ inputs.tfc_org }}
 
 jobs:
@@ -51,7 +50,7 @@ jobs:
       - name: 'Checkout Source Code'
         uses: actions/checkout@v4
 
-      - name: Install JQ via Choco
+      - name: Install JQ
         shell: pwsh
         run: choco install jq -y --no-progress
 
@@ -84,6 +83,11 @@ jobs:
           
           terraform -chdir="${{ inputs.working_dir }}" init -input=false
 
+      - name: 'Terraform Validate'
+        if: inputs.is_apply == false
+        shell: pwsh
+        run: terraform -chdir="${{ inputs.working_dir }}" validate            
+
       - name: 'Generate Terraform Plan'
         if: inputs.is_apply == false
         shell: pwsh
@@ -98,13 +102,14 @@ jobs:
           $env:TF_WORKSPACE = "infra-$envName"
           $env:TF_CLOUD_ORGANIZATION = "${{ env.TF_CLOUD_ORGANIZATION }}"
           
-          # Terraform plan generate
+          # Generate Terraform plan
           & terraform -chdir="$targetDir" plan -out="tfplan.binary"
           if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 2) { Write-Error "Plan Failed"; exit 1 }
           
+          # Convert plan binary to JSON for analysis
           & terraform -chdir="$targetDir" show -json tfplan.binary | Out-File -FilePath "$jsonPath" -Encoding utf8
           
-          # Resource Counts Calculate (Safely handles empty/null JSON tokens)
+          # Safe execution for resource count calculation
           $create = & $JQPath -r 'if .resource_changes then [.resource_changes[] | select(.change.actions[] == "create")] | length else 0 end' "$jsonPath"
           $update = & $JQPath -r 'if .resource_changes then [.resource_changes[] | select(.change.actions[] == "update")] | length else 0 end' "$jsonPath"
           $delete = & $JQPath -r 'if .resource_changes then [.resource_changes[] | select(.change.actions[] == "delete")] | length else 0 end' "$jsonPath"
@@ -117,7 +122,7 @@ jobs:
           "| Update | $update |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "| Delete | $delete |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           
-          # Detailed Resource List 
+          # Detailed Resource Changes Summary
           "`n### Detailed Resource Changes" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           
           $resources = & $JQPath -r 'if .resource_changes then [.resource_changes[] | select(.change.actions[] != "no-op") | "\(.address) | \(.change.actions[])"] | .[] else empty end' "$jsonPath"
@@ -127,7 +132,7 @@ jobs:
               "| :--- | :--- |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
               $resources | ForEach-Object { "| $_ |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
           } else {
-              "*No structural changes detected (Infrastructure is up-to-date).* " | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+              "*No structural modifications identified. Infrastructure matches configuration state.*" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
 
       - name: 'Upload Terraform Plan Artifact'
@@ -135,5 +140,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ github.sha }}
-          path: |
-            ${{ github.workspace }}/${{ inputs.working_dir }}/tfplan.binary
+          path: "${{ github.workspace }}/${{ inputs.working_dir }}/tfplan.binary"
+          retention-days: 1
