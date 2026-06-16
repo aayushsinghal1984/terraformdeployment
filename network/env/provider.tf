@@ -3,7 +3,7 @@ terraform {
   cloud {
     organization = "ISCINFRA"
     workspaces {  
-    prefix = "my-app"
+    name = "my-app"
     }
 
   }
