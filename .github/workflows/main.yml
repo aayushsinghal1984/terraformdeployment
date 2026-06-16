@@ -105,8 +105,7 @@ jobs:
     uses: ./.github/workflows/tf-test.yml
     with:
       target_env: ${{ needs.setup-env.outputs.resolved_env }}
-      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}
-      is_apply: false 
+      working_dir: ${{ needs.setup-env.outputs.resolved_dir }}       
     secrets: inherit
           
   # STAGE 2: Terraform Plan & Security Checks
