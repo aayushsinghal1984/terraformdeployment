@@ -42,6 +42,7 @@ jobs:
 
   setup-env:
     name: 'Environment & Path Evaluation'
+    needs: bootstrap
     runs-on: windows-latest
     defaults:
       run:
