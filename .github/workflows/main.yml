@@ -24,8 +24,8 @@ on:
         default: 'terraform/azure'
         type: string
 
-
 env:
+  # Global variables available to all steps and underlying scripts
   TARGET_ENV: ${{ github.event.inputs.target_env || 'sit' }}
   WORKING_DIR: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
   IS_APPLY: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
@@ -34,11 +34,11 @@ jobs:
   # 1. Run Static Code Analysis (Linting)
   tflint-check:
     name: 'Linting'
-    uses: ./.github/workflows/tflint-template.yml # Apne file ka sahi path dalein
+    uses: ./.github/workflows/tflint-template.yml
     with:
       target_env: ${{ github.event.inputs.target_env || 'sit' }}
       working_dir: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
-      is_apply: false # Linting hamesha initial check me chalegi
+      is_apply: false
       tfc_org: ${{ vars.TF_CLOUD_ORG }}
     secrets: inherit
 
@@ -46,7 +46,7 @@ jobs:
   tfsec-scan:
     name: 'Security Scan'
     needs: tflint-check
-    uses: ./.github/workflows/tfsec-template.yml # Apne file ka sahi path dalein
+    uses: ./.github/workflows/tfsec-template.yml
     with:
       target_env: ${{ github.event.inputs.target_env || 'sit' }}
       working_dir: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
@@ -58,11 +58,11 @@ jobs:
   terraform-plan:
     name: 'TF Plan'
     needs: tfsec-scan
-    uses: ./.github/workflows/init-plan-template.yml # Apne file ka sahi path dalein
+    uses: ./.github/workflows/init-plan-template.yml
     with:
       target_env: ${{ github.event.inputs.target_env || 'sit' }}
       working_dir: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
-      is_apply: false # Plan generate karne ke liye false rakhenge
+      is_apply: false
       tfc_org: ${{ vars.TF_CLOUD_ORG }}
     secrets: inherit
 
@@ -70,7 +70,7 @@ jobs:
   opa-compliance:
     name: 'OPA Compliance'
     needs: terraform-plan
-    uses: ./.github/workflows/opa-check-template.yml # Apne file ka sahi path dalein
+    uses: ./.github/workflows/opa-check-template.yml
     with:
       target_env: ${{ github.event.inputs.target_env || 'sit' }}
       working_dir: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
@@ -82,18 +82,19 @@ jobs:
   manual-approval:
     name: 'Approval Gate'
     needs: opa-compliance
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/manual-validation-template.yml # Apne file ka sahi path dalein
+    # Evaluates the global env string context cleanly as a boolean expression
+    if: ${{ fromJSON(env.IS_APPLY) }}
+    uses: ./.github/workflows/manual-validation-template.yml
 
   # 6. Execute Terraform Apply, Tagging and Versioning
   terraform-apply:
     name: 'TF Apply & Tag'
     needs: manual-approval
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/apply-tagging-template.yml # Apne file ka sahi path dalein
+    if: ${{ fromJSON(env.IS_APPLY) }}
+    uses: ./.github/workflows/apply-tagging-template.yml
     with:
       target_env: ${{ github.event.inputs.target_env || 'sit' }}
       working_dir: ${{ github.event.inputs.working_dir || 'terraform/azure' }}
-      is_apply: true # Is bar sirf apply aur artifact pull hoga
+      is_apply: true
       tfc_org: ${{ vars.TF_CLOUD_ORG }}
     secrets: inherit
