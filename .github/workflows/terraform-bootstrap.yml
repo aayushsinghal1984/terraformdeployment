@@ -34,4 +34,5 @@ jobs:
         if: ${{ inputs.is_apply == true }} 
         env:
           TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
+          TF_LOG: DEBUG
         run: terraform apply -auto-approve
