@@ -30,8 +30,6 @@ jobs:
         run: terraform plan -no-color
 
       - name: Terraform Apply
-        working-directory: ${{ inputs.working_dir }}
-        #if: ${{ inputs.is_apply == true }} 
-        env:
-          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
-        run: terraform apply -auto-approve -var="org_name=UL-ULSE" -var='env_list=["dev","sit"]'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
