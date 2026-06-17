@@ -12,7 +12,12 @@ on:
 
 jobs:
   terraform-task:
-    runs-on: windows-latest
+    runs-on: windows-latest    
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ${{ inputs.working_dir }}
+    
     steps:
       - uses: actions/checkout@v4
       
