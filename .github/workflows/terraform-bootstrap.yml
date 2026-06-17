@@ -31,7 +31,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ inputs.working_dir }}
-        if: ${{ inputs.is_apply == true }} 
+        #if: ${{ inputs.is_apply == true }} 
         env:
           TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
         run: terraform apply -auto-approve
