@@ -13,34 +13,28 @@ on:
 jobs:
   terraform-task:
     runs-on: windows-latest
-    defaults:
-      run:
-       
-        working-directory: ./terraform-bootstrap
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
+   
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
           
-      - name: Debug Path Info
-        shell: pwsh
-        run: |
-          Write-Host "Current Directory: $(Get-Location)"
-          Write-Host "Files in Directory:"
-          Get-ChildItem -Path . -Recurse | Select-Object FullName''
-
       - name: Terraform Init
-        working-directory: ./terraform-bootstrap
-        env:
-          TF_LOG: DEBUG
-        run: |
-          terraform init -no-color > terraform_init.log
-        
+    
+        working-directory: ${{ inputs.working_dir }}
+        run: terraform init -no-color
+
       - name: Terraform Plan
+        working-directory: ${{ inputs.working_dir }}
         run: terraform plan -no-color
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="tfe_token=${{ secrets.TF_API_TOKEN }}"
+        working-directory: ${{ inputs.working_dir }}
+        if: inputs.is_apply == true
+      
+        env:
+          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
+        run: terraform apply -auto-approve
