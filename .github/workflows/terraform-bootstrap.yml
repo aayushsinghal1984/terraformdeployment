@@ -22,8 +22,10 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
           
       - name: Terraform Init
-        working-directory: ${{ inputs.working_dir }}
-        run: terraform init -no-color
+        working-directory: ${{ inputs.working_dir }}        
+        run: |
+          ls -la  
+          terraform init -no-color
 
       - name: Terraform Plan
         working-directory: ${{ inputs.working_dir }}
