@@ -1,8 +1,9 @@
 name: Reusable Terraform Action
 on:
   workflow_call:
-    inputs:
-      working_dir: { type: string, default: "terraform-bootstrap" }
+    inputs:      
+      target_env: { type: string, required: false, default: "bootstrap" }
+      working_dir: { type: string, required: false, default: "." }
       is_apply: { type: boolean, default: true }
     secrets:
       TFE_API_TOKEN: { required: true }
