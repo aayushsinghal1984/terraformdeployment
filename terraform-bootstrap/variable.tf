@@ -11,8 +11,3 @@ variable "env_list" {
 }
 
 
-variable "tfe_token" {
-  description = "TFC API Token"
-  type        = string
-  sensitive   = true 
-}
