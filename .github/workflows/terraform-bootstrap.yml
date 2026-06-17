@@ -3,12 +3,11 @@ name: Reusable Terraform Action
 on:
   workflow_call:
     inputs:
-      target_env: { type: string, required: false }
+      target_env: { type: string, required: false, default: "none" }
       working_dir: { type: string, required: false, default: "." }
       is_apply: { type: boolean, default: false }
     secrets:
-      TFE_API_TOKEN: 
-        required: true
+      TFE_API_TOKEN: { required: true }
 
 jobs:
   terraform-task:
