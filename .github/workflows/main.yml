@@ -37,7 +37,7 @@ jobs:
   bootstrap:
     name: "Workspace Setup"
     if: github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/reusable-terraform.yml
+    uses: ./.github/workflows/terraform-bootstrap.yml
     with:
       working_dir: './terraform-bootstrap'
       target_env: 'bootstrap'
