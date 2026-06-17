@@ -1,28 +1,23 @@
 name: Reusable Terraform Action
-
 on:
   workflow_call:
     inputs:
-      target_env: { type: string, required: false, default: "none" }
-      working_dir: { type: string, required: false, default: "." }
-      is_apply: { type: boolean, default: false }
+      working_dir: { type: string, default: "terraform-bootstrap" }
+      is_apply: { type: boolean, default: true }
     secrets:
-      TFE_API_TOKEN: 
-        required: true
+      TFE_API_TOKEN: { required: true }
 
 jobs:
   terraform-task:
-    runs-on: windows-latest    
+    runs-on: windows-latest
     defaults:
       run:
         shell: pwsh
         working-directory: ${{ inputs.working_dir }}
-    
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
           
